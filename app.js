@@ -5,13 +5,13 @@ class CrashDashboard {
   constructor() {
     // Firebase configuration - REPLACE WITH YOUR FIREBASE CONFIG
     this.firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-      databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
-      projectId: "YOUR_PROJECT_ID",
-      storageBucket: "YOUR_PROJECT_ID.appspot.com",
-      messagingSenderId: "YOUR_SENDER_ID",
-      appId: "YOUR_APP_ID",
+      apiKey: "AIzaSyD1GuKYlnJqty1nPMVXmFRcLMoTNvDMzp4",
+      authDomain: "bc-game-89ca4.firebaseapp.com",
+      databaseURL: "https://bc-game-89ca4-default-rtdb.firebaseio.com",
+      projectId: "bc-game-89ca4",
+      storageBucket: "bc-game-89ca4.firebasestorage.app",
+      messagingSenderId: "839785126231",
+      appId: "1:839785126231:web:9f26be87ab959164f9c612",
     };
 
     this.db = null;
