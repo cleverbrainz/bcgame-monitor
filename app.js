@@ -49,6 +49,7 @@ class CrashDashboard {
       pauseBtn: document.getElementById("pauseBtn"),
       exportBtn: document.getElementById("exportBtn"),
       crashTableBody: document.getElementById("crashTableBody"),
+      visualGrid: document.getElementById("visualGrid"),
     };
 
     // Set up event listeners
@@ -280,11 +281,70 @@ class CrashDashboard {
 
   updateUI() {
     this.updateStats();
+    this.updateVisualGrid();
     this.updateTable();
   }
 
   updateStats() {
     this.elements.totalRecords.textContent = this.filteredData.length;
+  }
+
+  updateVisualGrid() {
+    const grid = this.elements.visualGrid;
+    const gridSize = 128; // 32x4 rows for desktop, will be responsive
+
+    // Get the latest data for the grid (most recent first)
+    const gridData = this.filteredData.slice(0, gridSize);
+
+    // Clear existing grid
+    grid.innerHTML = "";
+
+    // Create grid items
+    for (let i = 0; i < gridSize; i++) {
+      const gridItem = document.createElement("div");
+      gridItem.className = "grid-item";
+
+      const dot = document.createElement("div");
+      dot.className = "dot";
+
+      if (i < gridData.length) {
+        const record = gridData[i];
+        const numericValue = record.numeric_value;
+
+        // Determine dot color based on crash value
+        let dotClass = "bg-danger"; // Default for low values (1.0-1.9×)
+
+        if (numericValue >= 5.0) {
+          dotClass = "bg-success"; // High values (≥5.0×)
+        } else if (numericValue >= 2.0) {
+          dotClass = "bg-warning"; // Medium values (2.0-4.9×)
+        }
+
+        dot.className = `dot ${dotClass}`;
+
+        // Add tooltip
+        const tooltip = document.createElement("div");
+        tooltip.className = "grid-tooltip";
+        tooltip.textContent = `${record.crash_value} - ${new Date(
+          record.timestamp
+        ).toLocaleTimeString()}`;
+        gridItem.appendChild(tooltip);
+
+        // Add animation for new data (first item)
+        if (i === 0 && this.lastUpdateTime) {
+          gridItem.classList.add("new-data");
+          setTimeout(() => {
+            gridItem.classList.remove("new-data");
+          }, 1000);
+        }
+      } else {
+        // Empty slot
+        dot.className = "dot bg-empty";
+      }
+
+      gridItem.appendChild(dot);
+      grid.appendChild(gridItem);
+    }
   }
 
   updateTable() {

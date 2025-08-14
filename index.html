@@ -61,6 +61,34 @@
         <button id="clearFilters" class="btn btn-secondary">Clear</button>
       </div>
 
+      <div class="visual-section">
+        <div class="section-header">
+          <h2>Visual Crash History</h2>
+          <div class="visual-legend">
+            <div class="legend-item">
+              <div class="legend-dot bg-success"></div>
+              <span>High (≥5.0×)</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-dot bg-warning"></div>
+              <span>Medium (2.0-4.9×)</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-dot bg-danger"></div>
+              <span>Low (1.0-1.9×)</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-dot bg-empty"></div>
+              <span>No data</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="visual-grid" id="visualGrid">
+          <!-- Grid will be populated by JavaScript -->
+        </div>
+      </div>
+
       <div class="data-section">
         <div class="section-header">
           <h2>Live Crash History</h2>
