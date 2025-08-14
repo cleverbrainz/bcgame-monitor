@@ -29,7 +29,9 @@ In your Supabase dashboard:
 
 1. Go to "Database" → "Replication"
 2. Enable replication for the `crash_values` table
-3. This allows real-time updates in the web app
+3. **Important**: Make sure "Enable insert" is checked for the table
+4. Go to "Database" → "Publications" and verify `supabase_realtime` publication includes your table
+5. If real-time still doesn't work, the app includes automatic polling as a fallback (checks every 5 seconds)
 
 ### 3. Deploy the Web App
 

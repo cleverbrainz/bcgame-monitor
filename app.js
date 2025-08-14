@@ -39,10 +39,6 @@ class CrashDashboard {
       timeRange: document.getElementById("timeRange"),
       applyFilters: document.getElementById("applyFilters"),
       clearFilters: document.getElementById("clearFilters"),
-      avgValue: document.getElementById("avgValue"),
-      maxValueAnalytics: document.getElementById("maxValue"),
-      highValues: document.getElementById("highValues"),
-      veryHighValues: document.getElementById("veryHighValues"),
       pauseBtn: document.getElementById("pauseBtn"),
       exportBtn: document.getElementById("exportBtn"),
       crashTableBody: document.getElementById("crashTableBody"),
@@ -99,7 +95,7 @@ class CrashDashboard {
     if (!this.supabase) return;
 
     // Subscribe to real-time changes
-    const subscription = this.supabase
+    const channel = this.supabase
       .channel("crash_values_changes")
       .on(
         "postgres_changes",
@@ -125,9 +121,50 @@ class CrashDashboard {
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log("Subscription status:", status);
+        if (status === "SUBSCRIBED") {
+          console.log("Successfully subscribed to real-time updates");
+        } else if (status === "CHANNEL_ERROR") {
+          console.error("Real-time subscription error");
+          this.updateConnectionStatus("Real-time Error");
+        }
+      });
 
     console.log("Real-time subscription set up");
+
+    // Also set up periodic polling as fallback
+    this.setupPolling();
+  }
+
+  setupPolling() {
+    // Poll for new data every 5 seconds as fallback
+    setInterval(async () => {
+      if (!this.isPaused) {
+        try {
+          const { data, error } = await this.supabase
+            .from(this.tableName)
+            .select("*")
+            .order("created_at", { ascending: false })
+            .limit(10);
+
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            // Check if we have new records
+            const latestRecord = data[0];
+            const currentLatest = this.data[0];
+
+            if (!currentLatest || latestRecord.id !== currentLatest.id) {
+              // We have new data, reload
+              this.loadData();
+            }
+          }
+        } catch (error) {
+          console.error("Polling error:", error);
+        }
+      }
+    }, 5000);
   }
 
   applyFilters() {
@@ -203,39 +240,11 @@ class CrashDashboard {
 
   updateUI() {
     this.updateStats();
-    this.updateAnalytics();
     this.updateTable();
   }
 
   updateStats() {
     this.elements.totalRecords.textContent = this.filteredData.length;
-  }
-
-  updateAnalytics() {
-    if (this.filteredData.length === 0) {
-      this.elements.avgValue.textContent = "0.00×";
-      this.elements.maxValueAnalytics.textContent = "0.00×";
-      this.elements.highValues.textContent = "0";
-      this.elements.veryHighValues.textContent = "0";
-      return;
-    }
-
-    const values = this.filteredData.map((record) => record.numeric_value);
-
-    // Calculate average
-    const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
-    this.elements.avgValue.textContent = avg.toFixed(2) + "×";
-
-    // Find maximum
-    const max = Math.max(...values);
-    this.elements.maxValueAnalytics.textContent = max.toFixed(2) + "×";
-
-    // Count high values
-    const highValues = values.filter((val) => val >= 2.0).length;
-    this.elements.highValues.textContent = highValues;
-
-    const veryHighValues = values.filter((val) => val >= 5.0).length;
-    this.elements.veryHighValues.textContent = veryHighValues;
   }
 
   updateTable() {
