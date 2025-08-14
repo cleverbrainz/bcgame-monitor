@@ -5,13 +5,13 @@ class CrashDashboard {
   constructor() {
     // Firebase configuration - REPLACE WITH YOUR FIREBASE CONFIG
     this.firebaseConfig = {
-      apiKey: "AIzaSyD1GuKYlnJqty1nPMVXmFRcLMoTNvDMzp4",
-      authDomain: "bc-game-89ca4.firebaseapp.com",
-      databaseURL: "https://bc-game-89ca4-default-rtdb.firebaseio.com",
-      projectId: "bc-game-89ca4",
-      storageBucket: "bc-game-89ca4.firebasestorage.app",
-      messagingSenderId: "839785126231",
-      appId: "1:839785126231:web:9f26be87ab959164f9c612",
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID",
     };
 
     this.db = null;
@@ -291,59 +291,132 @@ class CrashDashboard {
 
   updateVisualGrid() {
     const grid = this.elements.visualGrid;
-    const gridSize = 128; // 32x4 rows for desktop, will be responsive
+    const maxItemsPerRow = 32; // Maximum items per row
+    const maxRows = 10; // Maximum number of rows to display
 
     // Get the latest data for the grid (most recent first)
-    const gridData = this.filteredData.slice(0, gridSize);
+    const recentData = this.filteredData.slice(0, maxItemsPerRow * maxRows);
+
+    // Group data by value ranges
+    const groupedData = {
+      moon: [], // ≥10.0×
+      green: [], // 2.0-9.99×
+      red: [], // 1.01-1.99×
+      crash: [], // 1.00×
+    };
+
+    recentData.forEach((record) => {
+      const numericValue = record.numeric_value;
+      if (numericValue >= 10.0) {
+        groupedData.moon.push(record);
+      } else if (numericValue >= 2.0) {
+        groupedData.green.push(record);
+      } else if (numericValue > 1.0) {
+        groupedData.red.push(record);
+      } else {
+        groupedData.crash.push(record);
+      }
+    });
 
     // Clear existing grid
     grid.innerHTML = "";
 
-    // Create grid items
-    for (let i = 0; i < gridSize; i++) {
-      const gridItem = document.createElement("div");
-      gridItem.className = "grid-item";
+    // Create rows for each group
+    const groups = [
+      {
+        name: "moon",
+        data: groupedData.moon,
+        class: "bg-moon",
+        label: "Moon (≥10.0×)",
+      },
+      {
+        name: "green",
+        data: groupedData.green,
+        class: "bg-success",
+        label: "Green (2.0-9.99×)",
+      },
+      {
+        name: "red",
+        data: groupedData.red,
+        class: "bg-warning",
+        label: "Red (1.01-1.99×)",
+      },
+      {
+        name: "crash",
+        data: groupedData.crash,
+        class: "bg-danger",
+        label: "Crash (1.00×)",
+      },
+    ];
 
-      const dot = document.createElement("div");
-      dot.className = "dot";
+    groups.forEach((group) => {
+      if (group.data.length > 0) {
+        // Create row header
+        const rowHeader = document.createElement("div");
+        rowHeader.className = "grid-row-header";
+        rowHeader.textContent = `${group.label} (${group.data.length})`;
+        grid.appendChild(rowHeader);
 
-      if (i < gridData.length) {
-        const record = gridData[i];
-        const numericValue = record.numeric_value;
+        // Create row container
+        const rowContainer = document.createElement("div");
+        rowContainer.className = "grid-row";
 
-        // Determine dot color based on crash value
-        let dotClass = "bg-danger"; // Default for low values (1.0-1.9×)
+        // Add dots for this group (left to right)
+        group.data.forEach((record, index) => {
+          const gridItem = document.createElement("div");
+          gridItem.className = "grid-item";
 
-        if (numericValue >= 5.0) {
-          dotClass = "bg-success"; // High values (≥5.0×)
-        } else if (numericValue >= 2.0) {
-          dotClass = "bg-warning"; // Medium values (2.0-4.9×)
+          const dot = document.createElement("div");
+          dot.className = `dot ${group.class}`;
+
+          // Add tooltip
+          const tooltip = document.createElement("div");
+          tooltip.className = "grid-tooltip";
+          tooltip.textContent = `${record.crash_value} - ${new Date(
+            record.timestamp
+          ).toLocaleTimeString()}`;
+          gridItem.appendChild(tooltip);
+
+          // Add animation for new data (check if this is a recent record)
+          if (
+            this.lastUpdateTime &&
+            index === 0 &&
+            recentData[0] &&
+            record.id === recentData[0].id
+          ) {
+            gridItem.classList.add("new-data");
+            setTimeout(() => {
+              gridItem.classList.remove("new-data");
+            }, 1000);
+          }
+
+          gridItem.appendChild(dot);
+          rowContainer.appendChild(gridItem);
+        });
+
+        // Fill remaining slots in row with empty dots (up to maxItemsPerRow)
+        const remainingSlots = Math.min(maxItemsPerRow - group.data.length, 10);
+        for (let i = 0; i < remainingSlots; i++) {
+          const gridItem = document.createElement("div");
+          gridItem.className = "grid-item";
+
+          const dot = document.createElement("div");
+          dot.className = "dot bg-empty";
+
+          gridItem.appendChild(dot);
+          rowContainer.appendChild(gridItem);
         }
 
-        dot.className = `dot ${dotClass}`;
-
-        // Add tooltip
-        const tooltip = document.createElement("div");
-        tooltip.className = "grid-tooltip";
-        tooltip.textContent = `${record.crash_value} - ${new Date(
-          record.timestamp
-        ).toLocaleTimeString()}`;
-        gridItem.appendChild(tooltip);
-
-        // Add animation for new data (first item)
-        if (i === 0 && this.lastUpdateTime) {
-          gridItem.classList.add("new-data");
-          setTimeout(() => {
-            gridItem.classList.remove("new-data");
-          }, 1000);
-        }
-      } else {
-        // Empty slot
-        dot.className = "dot bg-empty";
+        grid.appendChild(rowContainer);
       }
+    });
 
-      gridItem.appendChild(dot);
-      grid.appendChild(gridItem);
+    // If no data, show empty state
+    if (recentData.length === 0) {
+      const emptyState = document.createElement("div");
+      emptyState.className = "grid-empty-state";
+      emptyState.textContent = "No crash data available";
+      grid.appendChild(emptyState);
     }
   }
 
@@ -364,15 +437,18 @@ class CrashDashboard {
         const time = new Date(record.timestamp).toLocaleString();
         const numericValue = record.numeric_value;
 
-        let statusClass = "status-low";
-        let statusText = "Low";
+        let statusClass = "status-crash";
+        let statusText = "Crash";
 
-        if (numericValue >= 5.0) {
-          statusClass = "status-high";
-          statusText = "Very High";
+        if (numericValue >= 10.0) {
+          statusClass = "status-moon";
+          statusText = "Moon";
         } else if (numericValue >= 2.0) {
-          statusClass = "status-medium";
-          statusText = "High";
+          statusClass = "status-green";
+          statusText = "Green";
+        } else if (numericValue > 1.0) {
+          statusClass = "status-red";
+          statusText = "Red";
         }
 
         // Add highlight class for the newest record
