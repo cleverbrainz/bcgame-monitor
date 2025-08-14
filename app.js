@@ -1,31 +1,38 @@
-// BC.Game Crash Monitor - Web App JavaScript
-console.log("BC.Game Crash Monitor Web App loaded");
+// BC.Game Crash Monitor - Web App JavaScript (Realtime Database Version)
+console.log("BC.Game Crash Monitor Web App loaded (RTDB)");
 
 class CrashDashboard {
   constructor() {
-    // Supabase configuration - REPLACE WITH YOUR CREDENTIALS
-    this.supabaseUrl = "https://tpowdztczaiysxwxnxgr.supabase.co";
-    this.supabaseKey =
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwb3dkenRjemFpeXN4d3hueGdyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUxMzc4ODUsImV4cCI6MjA3MDcxMzg4NX0.87A0N6SH3iFtPlTKHkK5ogW1MvYYbEoOHPqWkD1Yax8";
-    this.tableName = "crash_values";
+    // Firebase configuration - REPLACE WITH YOUR FIREBASE CONFIG
+    this.firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID",
+    };
 
-    this.supabase = null;
+    this.db = null;
     this.data = [];
     this.filteredData = [];
     this.isPaused = false;
     this.lastUpdateTime = null;
+    this.unsubscribe = null;
 
     this.init();
   }
 
   init() {
-    // Initialize Supabase client
+    // Initialize Firebase
     try {
-      this.supabase = supabase.createClient(this.supabaseUrl, this.supabaseKey);
-      console.log("Supabase client initialized");
+      firebase.initializeApp(this.firebaseConfig);
+      this.db = firebase.database();
+      console.log("Firebase Realtime Database initialized");
     } catch (error) {
-      console.error("Failed to initialize Supabase:", error);
-      this.updateConnectionStatus("Error: Check credentials");
+      console.error("Failed to initialize Firebase:", error);
+      this.updateConnectionStatus("Error: Check Firebase config");
       return;
     }
 
@@ -69,17 +76,28 @@ class CrashDashboard {
     try {
       this.updateConnectionStatus("Loading...");
 
-      const { data, error } = await this.supabase
-        .from(this.tableName)
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(1000);
+      const snapshot = await this.db
+        .ref("crash_values")
+        .limitToLast(1000)
+        .once("value");
+      const data = snapshot.val();
 
-      if (error) {
-        throw error;
+      this.data = [];
+      if (data) {
+        // Convert Firebase object to array and sort by created_at descending
+        Object.keys(data).forEach((key) => {
+          this.data.push({
+            id: key,
+            ...data[key],
+          });
+        });
+
+        // Sort by created_at descending (newest first)
+        this.data.sort(
+          (a, b) => new Date(b.created_at) - new Date(a.created_at)
+        );
       }
 
-      this.data = data || [];
       this.filteredData = [...this.data];
       this.updateUI();
       this.updateConnectionStatus("Connected");
@@ -92,22 +110,30 @@ class CrashDashboard {
   }
 
   setupRealTimeUpdates() {
-    if (!this.supabase) return;
+    if (!this.db) return;
 
-    // Subscribe to real-time changes
-    const channel = this.supabase
-      .channel("crash_values_changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: this.tableName,
-        },
-        (payload) => {
-          if (!this.isPaused) {
-            console.log("New record received:", payload.new);
-            this.data.unshift(payload.new);
+    // Listen for new data added to crash_values
+    this.unsubscribe = this.db.ref("crash_values").on(
+      "child_added",
+      (snapshot) => {
+        if (!this.isPaused) {
+          const newRecord = {
+            id: snapshot.key,
+            ...snapshot.val(),
+          };
+
+          // Check if this record is already in our data (avoid duplicates on initial load)
+          const exists = this.data.find((record) => record.id === newRecord.id);
+          if (!exists) {
+            console.log(
+              "🔥 New crash value received in real-time:",
+              newRecord.crash_value
+            );
+
+            // Add visual feedback for new data
+            this.showNewDataNotification(newRecord.crash_value);
+
+            this.data.unshift(newRecord);
 
             // Keep only last 1000 records
             if (this.data.length > 1000) {
@@ -118,23 +144,33 @@ class CrashDashboard {
             this.updateUI();
             this.lastUpdateTime = new Date();
             this.updateLastUpdateTime();
+
+            // Update connection status to show live updates
+            this.updateConnectionStatus("🟢 Live - Real-time updates active");
           }
         }
-      )
-      .subscribe((status) => {
-        console.log("Subscription status:", status);
-        if (status === "SUBSCRIBED") {
-          console.log("Successfully subscribed to real-time updates");
-        } else if (status === "CHANNEL_ERROR") {
-          console.error("Real-time subscription error");
-          this.updateConnectionStatus("Real-time Error");
-        }
-      });
+      },
+      (error) => {
+        console.error("Real-time listener error:", error);
+        this.updateConnectionStatus("❌ Real-time Error - Using polling");
 
-    console.log("Real-time subscription set up");
+        // Fallback to polling
+        this.setupPolling();
+      }
+    );
 
-    // Also set up periodic polling as fallback
-    this.setupPolling();
+    // Set up connection state monitoring
+    this.db.ref(".info/connected").on("value", (snapshot) => {
+      if (snapshot.val() === true) {
+        console.log("🔗 Connected to Firebase");
+        this.updateConnectionStatus("🟢 Connected - Real-time active");
+      } else {
+        console.log("❌ Disconnected from Firebase");
+        this.updateConnectionStatus("🔴 Disconnected - Reconnecting...");
+      }
+    });
+
+    console.log("Real-time listener set up with connection monitoring");
   }
 
   setupPolling() {
@@ -142,20 +178,24 @@ class CrashDashboard {
     setInterval(async () => {
       if (!this.isPaused) {
         try {
-          const { data, error } = await this.supabase
-            .from(this.tableName)
-            .select("*")
-            .order("created_at", { ascending: false })
-            .limit(10);
+          const snapshot = await this.db
+            .ref("crash_values")
+            .limitToLast(10)
+            .once("value");
+          const data = snapshot.val();
 
-          if (error) throw error;
+          if (data) {
+            const latestKeys = Object.keys(data);
+            const currentKeys = this.data
+              .slice(0, 10)
+              .map((record) => record.id);
 
-          if (data && data.length > 0) {
             // Check if we have new records
-            const latestRecord = data[0];
-            const currentLatest = this.data[0];
+            const hasNewData = latestKeys.some(
+              (key) => !currentKeys.includes(key)
+            );
 
-            if (!currentLatest || latestRecord.id !== currentLatest.id) {
+            if (hasNewData) {
               // We have new data, reload
               this.loadData();
             }
@@ -260,7 +300,7 @@ class CrashDashboard {
     const recentData = this.filteredData.slice(0, 50);
 
     tbody.innerHTML = recentData
-      .map((record) => {
+      .map((record, index) => {
         const time = new Date(record.timestamp).toLocaleString();
         const numericValue = record.numeric_value;
 
@@ -275,8 +315,12 @@ class CrashDashboard {
           statusText = "High";
         }
 
+        // Add highlight class for the newest record
+        const highlightClass =
+          index === 0 && this.lastUpdateTime ? "new-record" : "";
+
         return `
-        <tr>
+        <tr class="${highlightClass}">
           <td>${time}</td>
           <td class="crash-value ${statusClass.replace("status-", "")}">${
           record.crash_value
@@ -287,6 +331,42 @@ class CrashDashboard {
       `;
       })
       .join("");
+
+    // Remove highlight after animation
+    if (this.lastUpdateTime) {
+      setTimeout(() => {
+        const newRecord = tbody.querySelector(".new-record");
+        if (newRecord) {
+          newRecord.classList.remove("new-record");
+        }
+      }, 2000);
+    }
+  }
+
+  showNewDataNotification(crashValue) {
+    // Create a temporary notification element
+    const notification = document.createElement("div");
+    notification.className = "new-data-notification";
+    notification.innerHTML = `
+      <span class="notification-icon">🔥</span>
+      <span class="notification-text">New crash: ${crashValue}</span>
+    `;
+
+    // Add to page
+    document.body.appendChild(notification);
+
+    // Animate in
+    setTimeout(() => notification.classList.add("show"), 100);
+
+    // Remove after 3 seconds
+    setTimeout(() => {
+      notification.classList.remove("show");
+      setTimeout(() => {
+        if (notification.parentNode) {
+          notification.parentNode.removeChild(notification);
+        }
+      }, 300);
+    }, 3000);
   }
 
   updateConnectionStatus(status) {
@@ -326,9 +406,21 @@ class CrashDashboard {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
+
+  // Clean up listeners when page unloads
+  destroy() {
+    if (this.unsubscribe && this.db) {
+      this.db.ref("crash_values").off("child_added", this.unsubscribe);
+    }
+  }
 }
 
 // Initialize the dashboard when the page loads
 document.addEventListener("DOMContentLoaded", () => {
-  new CrashDashboard();
+  const dashboard = new CrashDashboard();
+
+  // Clean up on page unload
+  window.addEventListener("beforeunload", () => {
+    dashboard.destroy();
+  });
 });

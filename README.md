@@ -1,39 +1,36 @@
 # BC.Game Crash Monitor - Web Dashboard
 
-A real-time web dashboard to view and analyze crash data collected by the Chrome extension.
+A real-time web dashboard to view and analyze crash data collected by the Chrome extension using Firebase Realtime Database.
 
 ## Features
 
-- **Real-time Updates**: Live data streaming from Supabase database
-- **Analytics Dashboard**: Average values, highest crashes, and statistics
+- **Real-time Updates**: Live data streaming from Firebase Realtime Database
 - **Filtering**: Filter by value range and time periods
 - **Data Export**: Export filtered data to CSV
 - **Responsive Design**: Works on desktop and mobile devices
+- **Automatic Polling**: Fallback polling system ensures data freshness
 
 ## Setup Instructions
 
-### 1. Configure Database Connection
+### 1. Configure Firebase Connection
 
-Open `app.js` and replace the placeholder values:
+Open `app.js` and replace the placeholder values with your Firebase configuration:
 
 ```javascript
-this.supabaseUrl = "YOUR_SUPABASE_URL";
-this.supabaseKey = "YOUR_SUPABASE_ANON_KEY";
+this.firebaseConfig = {
+  apiKey: "your-api-key",
+  authDomain: "your-project.firebaseapp.com",
+  databaseURL: "https://your-project-default-rtdb.firebaseio.com",
+  projectId: "your-project-id",
+  storageBucket: "your-project.appspot.com",
+  messagingSenderId: "123456789",
+  appId: "your-app-id",
+};
 ```
 
-Use the same Supabase credentials from your Chrome extension setup.
+**Important**: Use the same Firebase configuration from your Chrome extension setup. Make sure the `databaseURL` is correct.
 
-### 2. Enable Real-time Features
-
-In your Supabase dashboard:
-
-1. Go to "Database" → "Replication"
-2. Enable replication for the `crash_values` table
-3. **Important**: Make sure "Enable insert" is checked for the table
-4. Go to "Database" → "Publications" and verify `supabase_realtime` publication includes your table
-5. If real-time still doesn't work, the app includes automatic polling as a fallback (checks every 5 seconds)
-
-### 3. Deploy the Web App
+### 2. Deploy the Web App
 
 #### Option A: Local Development
 
@@ -53,12 +50,14 @@ In your Supabase dashboard:
 1. Upload the `web-app` folder to your hosting service
 2. The app will be available at your domain
 
-#### Option C: Deploy to Supabase (Static Hosting)
+#### Option C: Deploy to Firebase Hosting
 
-1. In your Supabase project, go to "Storage"
-2. Create a public bucket called "web-app"
-3. Upload all files from the `web-app` folder
-4. Access via the public URL
+1. Install Firebase CLI: `npm install -g firebase-tools`
+2. Login: `firebase login`
+3. Initialize: `firebase init hosting`
+4. Select your Firebase project
+5. Set public directory to current folder
+6. Deploy: `firebase deploy`
 
 ## Usage
 
@@ -66,14 +65,7 @@ In your Supabase dashboard:
 
 - **Total Records**: Number of crash entries (filtered)
 - **Last Update**: When the last data was received
-- **Status**: Connection status to Supabase
-
-### Analytics Cards
-
-- **Average Crash Value**: Mean of all crash values
-- **Highest Crash**: Maximum crash value recorded
-- **Values > 2.00×**: Count of high-value crashes
-- **Values > 5.00×**: Count of very high-value crashes
+- **Status**: Connection status to Firebase
 
 ### Filtering Options
 
@@ -93,9 +85,9 @@ In your Supabase dashboard:
 
 ```
 web-app/
-├── index.html      # Main HTML file
+├── index.html      # Main HTML file with Firebase Realtime Database SDK
 ├── style.css       # Styling and layout
-├── app.js          # JavaScript functionality
+├── app.js          # JavaScript functionality with Firebase RTDB integration
 └── README.md       # This file
 ```
 
@@ -110,27 +102,30 @@ web-app/
 
 ### No Data Showing
 
-- Check Supabase credentials in `app.js`
+- Check Firebase configuration in `app.js`
 - Verify the Chrome extension is running and storing data
 - Check browser console for error messages
+- Ensure Firebase Realtime Database is enabled
 
 ### Real-time Updates Not Working
 
-- Ensure replication is enabled in Supabase
-- Check network connectivity
-- Verify the table name matches (`crash_values`)
+- Check Firebase console for any errors
+- Verify network connectivity
+- The app includes automatic polling as fallback (every 5 seconds)
+- Ensure `databaseURL` is correct in configuration
 
 ### Connection Errors
 
-- Verify Supabase URL and API key
-- Check if the database table exists
-- Ensure Row Level Security is properly configured
+- Verify Firebase configuration values match the extension
+- Check if Realtime Database is properly enabled in Firebase project
+- Ensure you're using the correct Firebase SDK scripts
 
 ## Security Notes
 
-- The anon key is safe to use in client-side code
-- Row Level Security should be configured in Supabase
-- Consider rate limiting for production use
+- Firebase API keys are safe to use in client-side code
+- Realtime Database in test mode allows all reads/writes
+- For production, configure proper security rules
+- Consider implementing authentication for production use
 
 ## Development
 
@@ -140,4 +135,36 @@ To modify the dashboard:
 2. Modify `app.js` for functionality updates
 3. Update `index.html` for structure changes
 
-The app uses vanilla JavaScript and CSS for maximum compatibility and performance.
+The app uses Firebase SDK v10 and vanilla JavaScript for maximum compatibility and performance.
+
+## Firebase Realtime Database Features Used
+
+- **Real-time Listeners**: Live updates when new data is added via `child_added` events
+- **REST API**: Chrome extension uses REST API for data insertion
+- **Offline Support**: Firebase SDK provides offline capabilities
+- **Automatic Scaling**: Firebase handles scaling automatically
+- **Simple Structure**: JSON-like data structure that's easy to work with
+
+## Data Structure
+
+The app expects data in this Firebase Realtime Database structure:
+
+```
+crash_values/
+  ├── [unique_key_1]/
+  │   ├── timestamp: "2025-01-14T10:30:00.000Z"
+  │   ├── crash_value: "2.38×"
+  │   ├── numeric_value: 2.38
+  │   ├── url: "https://bc.game/game/crash"
+  │   └── created_at: "2025-01-14T10:30:05.123Z"
+  └── [unique_key_2]/
+      └── ...
+```
+
+## Why Realtime Database?
+
+- **Simpler setup**: No complex security rules needed for development
+- **Better real-time support**: Built-in live updates with `child_added` listeners
+- **Fewer permission issues**: Test mode works out of the box
+- **Proven reliability**: Mature technology with automatic scaling
+- **Easy integration**: Works seamlessly with both REST API and SDK
